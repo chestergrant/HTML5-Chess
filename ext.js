@@ -1,9 +1,18 @@
-var context, elem,tempContext, tempCanvas;
+var context, elem,tempContext, tempCanvas, highlightCanvas, highlightContext;
 var gameBoard = new Array(8);
 var msgBox;
+var gameOver = true;
 var start = false;
-var intel=Math.floor(Math.random()*2);
+var intel;
 var widthTile = 60;
+var storepieceSelected = -1;
+var turn;
+var scrWidth = 480;
+var scrHeight= scrWidth;
+var timeExpire;
+var delay =  1000*60*2; //two minutes
+var possibleMoves = new Array(32);
+var transform = new Array(32);
 /*var y_off = 10;
 var scr_height = 400;
 var scr_width = 660;
@@ -51,12 +60,24 @@ function init(){
   if(!tempCanvas||!tempCanvas.getContext){
       return;
   }
+  var highlightCanvas = document.createElement('canvas');
+  if(!highlightCanvas || !highlightCanvas.getContext){
+      return;
+  }
   tempCanvas.id ='tempView';
   tempCanvas.width = elem.width;
   tempCanvas.height = elem.height;
   container.appendChild(tempCanvas);
   tempContext = tempCanvas.getContext('2d');
+
+  highlightCanvas.id ='highlightView';
+  highlightCanvas.width = elem.width;
+  highlightCanvas.height = elem.height;
+  container.appendChild(highlightCanvas);
+  highlightContext = highlightCanvas.getContext('2d');
   restartGame();
+  highlightCanvas.addEventListener('click', mousedown, false);
+  highlightCanvas.addEventListener('mousemove', mousemove, false);
   /*elem.addEventListener('click', mouseclick, false);
   elem.addEventListener('mousemove', mousehover, false);
   tempCanvas.addEventListener('click', mouseclick, false);
@@ -65,6 +86,381 @@ function init(){
 
 init();
 }, false);
+
+function mousedown(){
+    var x,y;
+    // Get the mouse position relative to the canvas element.
+    if (ev.layerX || ev.layerX == 0) { // Firefox
+      x = ev.layerX;
+      y = ev.layerY;
+    } else if (ev.offsetX || ev.offsetX == 0) { // Opera
+      x = ev.offsetX;
+      y = ev.offsetY;
+    }
+
+    if((!gameOver) &&(turn != intel)){
+        if(playerPieceSelected(turn, pos(turn,x,y))){
+           if(storepieceSelected ==-1){
+            highlightMoves(pos(turn,x,y));
+            storepieceSelected == pos(turn,x,y);
+           }else{
+             if(validMove(storepieceSelected,pos(turn,x,y))){
+                play(storepieceSelected, pos(turn,x,y));
+             }
+             storepieceSelected ==-1;
+           }
+        }
+    }
+}
+function constructPossibleMoves(gameBoard){
+    var moves = new Array(32);
+    //Construct normal moves
+    for(var i = 0; i < moves.length; i++){
+        moves[i] = new Array[65];
+        piecePos = findPiece(i);
+        moves[i] = getMoves(i);
+    }
+    //Ensure king can't get check cause a piece moved
+
+    //Ensure the king can't move into check position
+    trimKing(moves,5,row(moves[5][64]), col(moves[5][64])); //Trim the black king
+    trimKing(moves,29,row(moves[29][64]), col(moves[29][64])); //Trim the white king
+
+    return moves;
+}
+
+function trimKing(moves, kingPos,i, j){
+    var checkPos = getPosTranslate(i,j,-1,-1);
+    moves = trimMove(move,checkPos,kingPos);
+    checkPos = getPosTranslate(i,j,-1,0);
+    moves = trimMove(move,checkPos,kingPos);
+    checkPos = getPosTranslate(i,j,-1,1);
+    moves = trimMove(move,checkPos,kingPos);
+
+    checkPos = getPosTranslate(i,j,0,-2);
+    moves = trimMove(move,checkPos,kingPos);
+    checkPos = getPosTranslate(i,j,0,-1);
+    moves = trimMove(move,checkPos,kingPos);
+
+    checkPos = getPosTranslate(i,j,0,1);
+    moves = trimMove(move,checkPos,kingPos);
+    checkPos = getPosTranslate(i,j,0,2);
+    moves = trimMove(move,checkPos,kingPos);
+
+    checkPos = getPosTranslate(i,j,1,-1);
+    moves = trimMove(move,checkPos,kingPos);
+    checkPos = getPosTranslate(i,j,1,0);
+    moves = trimMove(move,checkPos,kingPos);
+    checkPos = getPosTranslate(i,j,1,1);
+    moves = trimMove(move,checkPos,kingPos);
+    return moves;
+}
+
+function trimMove(move, checkPos, kingPos){
+    if(checkPos != -1){
+        if(moves[kingPos][checkPos] == 1){
+            var startPoint =getStartPoint(getOpponent(Math.floor(kingPos/16)));
+            for(var i = startPoint; i< startPoint+16; i++ ){
+                if(moves[i][checkPos]==1){
+                    moves[kingPos][checkPos] = -1;
+                    return moves;
+                }
+            }
+        }
+    }
+    return moves;
+}
+function getPosTranslate(i,j,di,dj){
+    i += di;
+    j += dj;
+    if((i<0)|| (i>7)){
+        return -1;
+    }
+    if((j<0)|| (j>7) ){
+        return -1;
+    }
+    return posRowCol(i,j);
+}
+
+function play(from, to){
+    if(!gameOver){
+        gameBoard = movePiece(gameBoard, from, to);
+        possibleMoves = constructPossibleMoves(gameBoard);
+        if(you != intel){
+            if(turn == you){
+                createTweet(from, to, you, you);
+            }else{
+                createTweet(from, to, you, intel);
+            }
+        }else{
+            createTweet(from, to, intel, intel);
+        }
+        
+        
+        if(gameOverMethod()){
+            msg(whoWon());
+            gameOver = true;
+            return;
+        }
+        if(inCheck(getOpponent(turn))){
+            msg(checkMsg(getOpponent(turn)));
+        }
+
+        turn  = getOpponent(turn);
+        resetTimer(turn);
+        setTimeout(function(){msg(displayWhoTurn(turn));},5000);
+        drawPiece(gameBoard);
+    }
+}
+function isPawn(aPiece){
+    if((aPiece>7)&&(aPiece<24)) {
+        return true;
+    }
+    return false;
+}
+function isKing(aPiece){
+    if( aPiece ==5){
+        return true;
+    }
+    if(aPiece == 29){
+        return true;
+    }
+    return false;
+}
+function getPromotionPiece(aPiece){
+    return 6;
+}
+function onEnemyRank(aPiece, row){
+        if((row==7)&&(aPiece>15)){
+            return true;
+        }
+        if((row==1)&&(aPiece<16)){
+            return true;
+        }
+        return false;
+}
+function movePiece(board, from, to){
+    var aPiece = pieceIndex(from);
+    var second = board[row(to)][col(to)];
+
+    //enpasse check
+    if(isPawn(aPiece)){
+        if(col(from)!=col(to)){
+            if(board[row(to)][col(to)]==-1){
+                //an enpasse
+                board[row(to)][col(to)]= aPiece;
+                board[row(from)][col(from)]= -1;
+                board[row(from)][col(to)] = -1;
+                return board;
+            }
+        }
+    }
+    //Castling Check
+    if(isKing(aPiece)){
+        if(Maths.abs( col(to)- col(from) )> 1 ){
+            if(col(to) > 5){
+                //King side Castle
+                board[row(to)][col(to)] = aPiece;
+                board[row(to)][col(from)] = -1;
+                board[row(to)][5] = board[row(to)][7];
+                board[row(to)][7] = -1;
+
+            }else{
+                //Queen side Castle
+                board[row(to)][col(to)] = aPiece;
+                board[row(to)][col(from)] = -1;
+                board[row(to)][3] = board[row(to)][0];
+                board[row(to)][0] = -1;
+            }
+            return board;
+        }
+
+    }
+    if(isPawn(aPiece)&&(onEnemyRank(aPiece, row(to)))){
+        tranform[aPiece] = getPromotionPiece(aPiece);
+    }
+    //Straight forward moves
+    board[row(to)][col(to)] = aPiece;
+    board[row(from)][col(from)] = -1;
+    return board;
+}
+function resetTimer(){
+    timeExpire = getTime() + delay;
+
+}
+function inCheck(board,possibleMoves,tempTurn){
+    var kingPosition = getKing(board,tempTurn);
+    startPoint= getStartPoint(getOpponent(tempTurn));
+    for(var i = startPoint; i<startPoint+16; i++){
+        if(possibleMoves[i][kingPosition]==1){
+            return true;
+        }
+    }
+    return false;
+}
+function getStartPoint(tempTurn){
+    if(tempTurn == 1){
+        return 0;
+    }
+    return 16;
+}
+function getKing(board, tempTurn){
+    if(tempTurn == 1){
+        kingSymbol= 5;
+
+    }else{
+        kingSymbol = 29;
+    }
+    for(var i =0; i< board.length; i++){
+        for(var j=0; j<board.length; j++){
+           if(board[i][j] == kingSymbol){
+               return posRowCol(i,j);
+           }
+        }
+    }
+    return -1;
+}
+function checkMsg(tempTurn){
+    var msgCheck ="";
+    if(you == tempTurn){
+        if(you == intel){
+            msgCheck = "The world is in check";
+        }else{
+            msgCheck = "You are in check";
+        }
+    }else{
+        if(you == intel){
+            msgCheck = player+" is in check";
+        }else{
+            msgCheck = " The world is in check";
+        }
+    }
+    return msgCheck;
+}
+function gameOverMethod(){
+    if(((checkDraw(turn)))||(checkDraw(getOpponent(turn)))){
+        return true;
+    }
+    if(checkWin(turn)){
+        return true;
+    }
+    if(checkWin(getOpponent(turn))){
+        return true;
+    }
+    return false;
+}
+function whoWon(){
+    var winStr = "The Game was a draw";
+    if(checkWin(you)){
+        if(you == intel){
+           winStr = "Congrats the world won!!!";
+           return winStr;
+        }
+        winStr = "Congrats you just beat the world!!!";
+        return winStr;
+    }
+
+
+    if(checkWin(getOpponent(you))){
+        if(you == intel){
+           winStr = "Sorry the world lost";
+           return winStr;
+        }
+        winStr = "Sorry you lost against the world";
+        return winStr;
+    }
+    return winStr;
+}
+function displayWhoTurn(turn){
+    var whoStr = "";
+    
+    if(turn == you){
+        if(you == intel){
+            whoStr = "It is your turn to play on befhalf of the world ";
+        }else{
+            whoStr = "It is your turn to play";
+        }
+        
+    }else{
+        if(you == intel){
+            whoStr = "It is "+player+" turn to play ";
+        }else{
+            whoStr = "It is the world's turn to play";
+        }
+        
+    }
+    return whoStr;
+}
+function getOpponent(turn){
+    if(turn == 1){
+        return 0;
+    }
+    return 1;
+}
+function validMove(from, to){
+    if(to == -1){ return false;}
+    if(sameTeam(from, to)){return false;}
+    if(possibleMoves[pieceIndex(from)][to] == -1){return false;}
+    return true;
+}
+function pieceIndex(pos){
+    var aPiece = gameBoard[row(pos)][col(pos)];
+    if(aPiece < 100){
+        return aPiece;
+    }else{
+        return aPiece - 100;
+    }
+}
+function sameTeam(from, to){
+    if( (gameBoard[row(from)][col(from)]<100)&&(gameBoard[row(to)][col(to)]<100)){
+        return true;
+    }
+     if( (gameBoard[row(from)][col(from)]>100)&&(gameBoard[row(to)][col(to)]>100)){
+        return true;
+    }
+    return false;
+}
+function pos(turn, x, y){
+    if((x<0)&&(x>scrWidth)){
+        return -1;
+    }
+    if((y<0)&&(y>scrHeight)){
+        return -1;
+    }
+    var x_offset = Math.floor(x/60);
+    var y_offset = Math.floor(y/60);
+    var upsidePos = posRowCol(x_offset,y_offset);
+    var reversePos = 64-(upsidePos-1);
+    if(turn  == 1){        
+        return upsidePos;
+    }else{
+
+        return reversePos;
+    }
+    
+}
+function playerPieceSelected(turn, pos){
+    if((pos >= 1)&&( pos<=64)){
+        var thePiece = gameBoard[row(pos)][col(pos)];
+        if(thePiece == -1){ return false;}
+        if((thePiece<100)&&(turn ==0)){
+            return true;
+        }
+        if((thePiece > 100)&&(turn ==1)){
+            return true;
+        }
+    }
+    return false;
+}
+function row(pos){
+    return Math.floor((pos-1)/8);
+}
+function col(pos){
+    return (pos-1)%8;;
+}
+function posRowCol(i, j){
+    return (i*8)+(j+1);
+}
 /*function convertData(board, piece){
 var data = new Array(4);
 
