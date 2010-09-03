@@ -1,18 +1,19 @@
+//Drawing on the canvas elements
 var context, elem,tempContext, tempCanvas, highlightCanvas, highlightContext;
-var gameBoard = new Array(8);
-var msgBox;
-var gameOver = true;
-var start = false;
-var intel;
-var widthTile = 60;
-var storepieceSelected = -1;
-var turn;
-var scrWidth = 480;
-var scrHeight= scrWidth;
-var timeExpire;
+var gameBoard = new Array(8); //Stores the position of the pieces on board
+var msgBox; //Place to display status updates
+var gameOver = true; //Determines if the game is over
+var start = false; //Determines whether the game has started or not
+var intel; //Displays the opponent of the person who started this game
+var widthTile = 60; //Determines the width of a tile
+var storepieceSelected = -1; //used to store a piece when it is click on
+var turn; //Stores whose turn it is to play
+var scrWidth = 480; //Sets screen Width of the playing area
+var scrHeight= scrWidth; //Sets screen height of the playing area
+var timeExpire; //Deterimine whether time to play has expired
 var delay =  1000*60*2; //two minutes
-var possibleMoves = new Array(32);
-var transform = new Array(32);
+var possibleMoves = new Array(32); //Stores all the possible moves
+var transform = new Array(32); //Keys track of pieces that have changed into another
 /*var y_off = 10;
 var scr_height = 400;
 var scr_width = 660;
@@ -87,6 +88,7 @@ function init(){
 init();
 }, false);
 
+//Used in playing a piece on board
 function mousedown(){
     var x,y;
     // Get the mouse position relative to the canvas element.
@@ -100,10 +102,15 @@ function mousedown(){
 
     if((!gameOver) &&(turn != intel)){
         if(playerPieceSelected(turn, pos(turn,x,y))){
+
            if(storepieceSelected ==-1){
+            //if player hasn't selected a piece as yet highlight all moves of
+            //this piece selection
             highlightMoves(pos(turn,x,y));
             storepieceSelected == pos(turn,x,y);
            }else{
+             //if player has selected a piece check if a it's a valid move
+             //Then plays it
              if(validMove(storepieceSelected,pos(turn,x,y))){
                 play(storepieceSelected, pos(turn,x,y));
              }
@@ -112,6 +119,8 @@ function mousedown(){
         }
     }
 }
+
+//Construct all the possible moves of pieces on the board
 function constructPossibleMoves(gameBoard){
     var moves = new Array(32);
     //Construct normal moves
@@ -129,6 +138,7 @@ function constructPossibleMoves(gameBoard){
     return moves;
 }
 
+//Determines all the position a King can play
 function trimKing(moves, kingPos,i, j){
     var checkPos = getPosTranslate(i,j,-1,-1);
     moves = trimMove(move,checkPos,kingPos);
@@ -156,6 +166,7 @@ function trimKing(moves, kingPos,i, j){
     return moves;
 }
 
+//Determines if a King can move into the position indicate in checkPos
 function trimMove(move, checkPos, kingPos){
     if(checkPos != -1){
         if(moves[kingPos][checkPos] == 1){
@@ -170,6 +181,7 @@ function trimMove(move, checkPos, kingPos){
     }
     return moves;
 }
+//Moves a row and column by some value indicated by di and dj respectfully
 function getPosTranslate(i,j,di,dj){
     i += di;
     j += dj;
@@ -181,11 +193,16 @@ function getPosTranslate(i,j,di,dj){
     }
     return posRowCol(i,j);
 }
-
+//plays a piece
 function play(from, to){
+    //Assume all moves are valid moves
     if(!gameOver){
+        //Move piece on the board
         gameBoard = movePiece(gameBoard, from, to);
+        //Reconstruct all the possible moves on the board
         possibleMoves = constructPossibleMoves(gameBoard);
+
+        //Display by twitter move played
         if(you != intel){
             if(turn == you){
                 createTweet(from, to, you, you);
@@ -196,28 +213,33 @@ function play(from, to){
             createTweet(from, to, intel, intel);
         }
         
-        
+        //if game is over display who won and set the game to be over
         if(gameOverMethod()){
             msg(whoWon());
             gameOver = true;
             return;
         }
+        //Checks if the player is in check
         if(inCheck(getOpponent(turn))){
             msg(checkMsg(getOpponent(turn)));
         }
 
-        turn  = getOpponent(turn);
-        resetTimer(turn);
-        setTimeout(function(){msg(displayWhoTurn(turn));},5000);
-        drawPiece(gameBoard);
+        turn  = getOpponent(turn); //Change turns
+        resetTimer(turn); //Reset the timer for the current player
+        setTimeout(function(){msg(displayWhoTurn(turn));},5000); //displays whose turn
+        drawPiece(gameBoard); //Draw the pieces a fresh to the board
     }
 }
+
+//Determine if the piece is a pawn
 function isPawn(aPiece){
     if((aPiece>7)&&(aPiece<24)) {
         return true;
     }
     return false;
 }
+
+//Determine if the piece is a King
 function isKing(aPiece){
     if( aPiece ==5){
         return true;
@@ -227,9 +249,14 @@ function isKing(aPiece){
     }
     return false;
 }
+
+//Change a pawn to a queen
+//Suppose to give players a choice
 function getPromotionPiece(aPiece){
     return 6;
 }
+
+//Determines if a piece is in the enemies rank
 function onEnemyRank(aPiece, row){
         if((row==7)&&(aPiece>15)){
             return true;
@@ -239,11 +266,13 @@ function onEnemyRank(aPiece, row){
         }
         return false;
 }
+
+//Actually moves the piece on the board
 function movePiece(board, from, to){
     var aPiece = pieceIndex(from);
     var second = board[row(to)][col(to)];
 
-    //enpasse check
+    //enpasse move
     if(isPawn(aPiece)){
         if(col(from)!=col(to)){
             if(board[row(to)][col(to)]==-1){
@@ -255,7 +284,7 @@ function movePiece(board, from, to){
             }
         }
     }
-    //Castling Check
+    //Castling Move
     if(isKing(aPiece)){
         if(Maths.abs( col(to)- col(from) )> 1 ){
             if(col(to) > 5){
@@ -284,10 +313,14 @@ function movePiece(board, from, to){
     board[row(from)][col(from)] = -1;
     return board;
 }
+
+//Reset the timer involved in determining if the time for a player to play
+// is up
 function resetTimer(){
     timeExpire = getTime() + delay;
 
 }
+//Determines if a player is in check
 function inCheck(board,possibleMoves,tempTurn){
     var kingPosition = getKing(board,tempTurn);
     startPoint= getStartPoint(getOpponent(tempTurn));
@@ -298,12 +331,16 @@ function inCheck(board,possibleMoves,tempTurn){
     }
     return false;
 }
+
+//Return 0 if it's black and 15 if turn is white
 function getStartPoint(tempTurn){
     if(tempTurn == 1){
         return 0;
     }
     return 16;
 }
+
+//Returns the numerical value of the King of the person who is suppose to play
 function getKing(board, tempTurn){
     if(tempTurn == 1){
         kingSymbol= 5;
@@ -320,15 +357,18 @@ function getKing(board, tempTurn){
     }
     return -1;
 }
+
+//Display a message when a King is in check
 function checkMsg(tempTurn){
     var msgCheck ="";
+    //If your king is in check
     if(you == tempTurn){
         if(you == intel){
             msgCheck = "The world is in check";
         }else{
             msgCheck = "You are in check";
         }
-    }else{
+    }else{ //if your opponent is in check
         if(you == intel){
             msgCheck = player+" is in check";
         }else{
@@ -337,6 +377,8 @@ function checkMsg(tempTurn){
     }
     return msgCheck;
 }
+
+//Determines if the game is over
 function gameOverMethod(){
     if(((checkDraw(turn)))||(checkDraw(getOpponent(turn)))){
         return true;
@@ -349,8 +391,11 @@ function gameOverMethod(){
     }
     return false;
 }
+//Display who won the game
 function whoWon(){
     var winStr = "The Game was a draw";
+
+    //Checks if you  who won the game and displays appropriate message
     if(checkWin(you)){
         if(you == intel){
            winStr = "Congrats the world won!!!";
@@ -360,7 +405,7 @@ function whoWon(){
         return winStr;
     }
 
-
+    //Checks if it's your opponent and displays appropriate message'
     if(checkWin(getOpponent(you))){
         if(you == intel){
            winStr = "Sorry the world lost";
@@ -371,6 +416,8 @@ function whoWon(){
     }
     return winStr;
 }
+
+//Display who is to play at this moment
 function displayWhoTurn(turn){
     var whoStr = "";
     
@@ -391,18 +438,26 @@ function displayWhoTurn(turn){
     }
     return whoStr;
 }
+
+//Return the opponent of player being reference in turn
 function getOpponent(turn){
     if(turn == 1){
         return 0;
     }
     return 1;
 }
+
+//Determines whether the move desired by the player is an actual valid move
 function validMove(from, to){
     if(to == -1){ return false;}
     if(sameTeam(from, to)){return false;}
     if(possibleMoves[pieceIndex(from)][to] == -1){return false;}
     return true;
 }
+
+//Returns the a value from 0 - 31 which represent a piece on the board
+//0= black rook,5= king, 7 = black rook, 16- white pawn,31 = white rook
+//Just enumerating the pieces
 function pieceIndex(pos){
     var aPiece = gameBoard[row(pos)][col(pos)];
     if(aPiece < 100){
@@ -411,6 +466,8 @@ function pieceIndex(pos){
         return aPiece - 100;
     }
 }
+//Determine if the place where the current piece is going is not occupied by the
+// players piece
 function sameTeam(from, to){
     if( (gameBoard[row(from)][col(from)]<100)&&(gameBoard[row(to)][col(to)]<100)){
         return true;
@@ -420,6 +477,8 @@ function sameTeam(from, to){
     }
     return false;
 }
+
+//Return position that is being clicked on by a player
 function pos(turn, x, y){
     if((x<0)&&(x>scrWidth)){
         return -1;
@@ -439,6 +498,7 @@ function pos(turn, x, y){
     }
     
 }
+//Ensure that the piece the current play is trying to move is there own
 function playerPieceSelected(turn, pos){
     if((pos >= 1)&&( pos<=64)){
         var thePiece = gameBoard[row(pos)][col(pos)];
@@ -452,12 +512,16 @@ function playerPieceSelected(turn, pos){
     }
     return false;
 }
+//Returns the row of a given position
 function row(pos){
     return Math.floor((pos-1)/8);
 }
+
+//Returns the column of a given position
 function col(pos){
     return (pos-1)%8;;
 }
+//Return the position of a tile given it's column and row
 function posRowCol(i, j){
     return (i*8)+(j+1);
 }
@@ -474,15 +538,28 @@ data[3] = new Array(3);
 data[3][0]= piece
 return data;
 }*/
+
+//Place all the pieces back into their orignial position
 function reset(){
     for(var i = 0; i< gameBoard.length;i++){
         gameBoard[i] = new Array(gameBoard.length);
         for(var j = i; j < gameBoard.length; j++){
-            gameBoard[i][j] = -1;
+            gameBoard[i][j] = -1; //Set all pieces to be an empty space
+
+            //if position for a black piece place it on the board
+            if(posRowCol(i,j)< 16){
+                gameBoard[i][j] = posRowCol(i,j) + 1;
+            }
+
+            //if position for a white piece place it on the board
+            if(posRowCol(i,j)> 23){
+                gameBoard[i][j] = posRowCol(i,j) - 23 + 115;
+            }
         }
         
     }
 }
+//Displays message updates about the game.
 function msg(theMsg){
     var str='<span class="green">Status:&nbsp;</span>';
     msgBox.innerHTML=str+' '+theMsg;
@@ -607,11 +684,19 @@ if(getOpponent(intel)==0){
     return "The Game was Drawn";
 }
 */
+
+//Reset everything to a state where the game can be started a fresh
 function restartGame(){
-    start= true;
+    start= true; //Set the game start to be true
+
+    //Clears the screen
     tempContext.clearRect(0, 0, elem.width, elem.height);
     context.clearRect(0, 0, elem.width, elem.height);
+
+    //Randomly selects who goes first
     intel=Math.floor(Math.random()*2);
+
+    //Places pieces back in their original spot
     drawChessBoard();
     reset();
     //computerPlay();
@@ -729,12 +814,16 @@ function checkBox(i, x, y){
 
     return false;
 }*/
+//Gets the pixel x coordinate of where this tile begins
 function getTileX(i){
     return (i%8)*widthTile;
 }
+
+//Get's the pixel y coordinate of where this tile begins
 function getTileY(i){
     return (Math.floor(i / 8))*widthTile;
 }
+//Draw a tile at a position i with either a black or white
 function drawTile(i){
     var x_begin = getTileX(i);
     var y_begin = getTileY(i);
@@ -748,13 +837,17 @@ function drawTile(i){
     if(col%2 ==1){
         oddX = true;
     }
+    //Set the title to be gray only if boths it's column and row are even or both odd
     if((oddY && oddX)||(!oddY &&!oddX)){
         context.fillStyle = '#C1C1C1';
     }else{
         context.fillStyle = '#000000';
-    } 
+    }
+    //Actually draw the tile
     context.fillRect(x_begin,y_begin,widthTile,widthTile);
 }
+
+//Function to draw chess board to the screen
 function drawChessBoard(){
     for(var i = 0; i<64; i++){
         drawTile(i);
