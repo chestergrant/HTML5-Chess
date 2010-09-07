@@ -14,6 +14,8 @@ var timeExpire; //Deterimine whether time to play has expired
 var delay =  1000*60*2; //two minutes
 var possibleMoves = new Array(32); //Stores all the possible moves
 var transform = new Array(32); //Keys track of pieces that have changed into another
+var moves = new Array(32);
+var kingMoves =((1,1),(1,0),(1,-1),(0,1),(0,-1),(-1,1),(-1,0),(-1,-1),(0,2),(0,-2));
 /*var y_off = 10;
 var scr_height = 400;
 var scr_width = 660;
@@ -119,22 +121,50 @@ function mousedown(){
         }
     }
 }
-
-//Construct all the possible moves of pieces on the board
-function constructPossibleMoves(gameBoard){
-    var moves = new Array(32);
+//Creates the initial set of move should be called on restart
+function movesPopulation(moves){
     //Construct normal moves
     for(var i = 0; i < moves.length; i++){
-        moves[i] = new Array[65];
-        piecePos = findPiece(i);
-        moves[i] = getMoves(i);
+        moves[i] = new Array[66];
+        for(var j = 0; j < moves[i].length; j++){
+            moves[i] = -1;
+        }
+        moves[65] = 0;//Stores the number of time this piece has been move
+        moves[64] = i + Maths.floor(i/16)*16; //stores initial position on the board of the piece
     }
-    //Ensure king can't get check cause a piece moved
+    return moves;
+    //moves = constructionPossibleMoves(moves,board); -method doing more than one thing
+}
+//Construct all the possible moves of pieces on the board
+function constructPossibleMoves(moves,gameBoard){
+    moves = getUnrestrictedMoves(moves);
+    moves = castlingMove(moves,4,gameBoard);
+    moves = castlingMove(moves,28,gameBoard);
+    moves = limitMoveCheck(moves,4,gameBoard);
+    moves = limitMoveCheck(moves,28,gameBoard);
+    moves = moveIntoCheck(moves,4,gameBoard);
+    moves = moveIntoCheck(moves,28,gameBoard);
+    return moves;
+}
 
-    //Ensure the king can't move into check position
-    trimKing(moves,5,row(moves[5][64]), col(moves[5][64])); //Trim the black king
-    trimKing(moves,29,row(moves[29][64]), col(moves[29][64])); //Trim the white king
+//Limits the king from moving into check
+function moveIntoCheck(moves, kingIndex,board){
+    var startingPoint  =0;
+    var kingPos = moves[kingIndex][64];
+    if(kingIndex < 5) startPoint = 16;
 
+    for(var k = 0; k < kingMoves.length; k++){
+        var kingTrans = getPosTranslate(row(kingPos),col(kingPos),kingMoves[i][0],kingMoves[i][1]);
+        if(kingTrans != -1){
+            if(moves[kingIndex][kingTrans] == 1){
+                for(var i =startingPoint; i < startPoint+16; i++){
+                    if((moves[i][kingTrans] ==1)||(moves[i][kingTrans] ==2)){
+                        moves[kingIndex][kingTrans]=-1
+                    }
+                }
+            }
+        }
+    }
     return moves;
 }
 
