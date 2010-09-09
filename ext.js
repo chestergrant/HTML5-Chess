@@ -15,7 +15,7 @@ var delay =  1000*60*2; //two minutes
 var possibleMoves = new Array(32); //Stores all the possible moves
 var transform = new Array(32); //Keys track of pieces that have changed into another
 var moves = new Array(32);
-var kingMoves =((1,1),(1,0),(1,-1),(0,1),(0,-1),(-1,1),(-1,0),(-1,-1),(0,2),(0,-2));
+var kingMoves =[[1,1],[1,0],[1,-1],[0,1],[0,-1],[-1,1],[-1,0],[-1,-1],[0,2],[0,-2]];
 /*var y_off = 10;
 var scr_height = 400;
 var scr_width = 660;
@@ -137,7 +137,7 @@ function movesPopulation(moves){
 }
 //Construct all the possible moves of pieces on the board
 function constructPossibleMoves(moves,gameBoard){
-    moves = getUnrestrictedMoves(moves);
+    moves = getUnrestrictedMoves(moves, gameBoard);
     moves = castlingMove(moves,4,gameBoard);
     moves = castlingMove(moves,28,gameBoard);
     moves = limitMoveCheck(moves,4,gameBoard);
@@ -146,18 +146,258 @@ function constructPossibleMoves(moves,gameBoard){
     moves = moveIntoCheck(moves,28,gameBoard);
     return moves;
 }
+//Return the unRestricted Moves for every piece on the board
+function getUnrestrictedMoves(moves, board){
+    for(var i = 0; i< 32; i++){
+        if(moves[i][64] != -1){
+            moves = getMoves(moves, i, pieceType(i),board);
+        }
+    }
+    return moves;
+}
+//Return the normal moves depending on the piece
+function getMoves(moves, i, piece, board){
+    var actualType = Maths.floor(piece/10);
+    if(actualType == 1){
+        return pawnMove(moves,i,piece,board);
+    }
+    if(actualType == 2){
+        return knightMove(moves,i,piece,board);
+    }
+    if(actualType == 3){
+        return bishopMove(moves,i,piece,board);
+    }
+    if(actualType == 4){
+        return rookMove(moves,i,piece,board);
+    }
+    if(actualType == 5){
+        moves = bishopMove(moves,i,piece,board);
+        return rookMove(moves,i,piece,board);
+    }
+    if(actualType == 6){
+        return kingMove(moves,i,piece,board);
+    }
+    return moves;
+}
+function pawnMove(moves, i , piece, board){
+    var multiple = 1;
+    if((piece % 10) == 1){
+        multiple = -1;
+    }
+    var pawnMoves =[[multiple,0],[2*multiple,0],[multiple,1],[multiple-1]];
+    for(var j = 0; j< pawnMoves.length; j++){
+        var pos = moves[i][64];
+        var posTran = posTranslate(row(pos),col(pos),pawnMoves[0],pawnMoves[1]);
+        if(posTran != -1){
+           if(!sameTeam(pos,posTran,board)){
+            if(j == 0){
+                    moves[i][posTran] = 1;
+            }
+             if(j == 1){
+                    if(moves[i][posTran-8]==1){
+                        moves[i][posTran] = 1;
+                    }
+            }
+            if((j >= 2)){
+                    if(board[i][posTran]!=-1){
+                        moves[i][posTran] = 1;
+                    }else if(enpasse(moves,pos,board)){
+                        moves[i][posTran] = 1;
+                    }
+            }
+           }
+        }
+    }
+    return moves;
+}
 
+function enpasse(moves, pos, board){
+    var aPiece =  board[row(pos)][col(pos)];
+    if(aPiece>100){
+        aPiece -= 100;
+    }
+    if(isPawn(aPiece)){
+        if(moves[aPiece][65]==1){
+            if((row(pos)==3)||(row(pos)==4)){
+                return true;
+            }
+        }
+
+    }
+    return false;
+}
+//Return the encode of the type of piece we are trying to find the moves of
+function pieceType(i){
+    if((i==0)||(i==7)){
+        return 40;      //Black Rook
+    }
+    if((i==24)||(i==31)){
+        return 41;      //White Rook
+    }
+    if(i==4){
+        return 60; //White King
+    }
+    if(i==28){
+        return 61; //White King
+    }
+    if(i==3){
+        return 50; //Black Queen
+    }
+    if(i==27){
+        return 51; //White Queen
+    }
+    if((i==1)||(i==6)){
+        return 30;      //Black Bishop
+    }
+    if((i==25)||(i==30)){
+        return 31;      //White Bishop
+    }
+    if((i==2)||(i==5)){
+        return 20;      //Black Rook
+    }
+    if((i==26)||(i==29)){
+        return 21;      //White Rook
+    }
+    if((i>7)&&(i<16)){
+        return 10;      //Black Pawn
+    }
+    if((i>15)&&(i<32)){
+        return 11;      //White Pawn
+    }
+}
+//Check if a king can castle on queen side or king side
+function castle(moves, kingIndex, board, type){
+    //
+    var transPos = getPosTranslate(row(moves[kingIndex][64]),col(moves[kingIndex][64]),0,-2);
+    if(transPos == -1){
+        moves[kingIndex][transPos]=-1;
+        return moves;
+    }
+    var  tempTurn = 1; //Set who is playing
+    var arraySize = 5;
+    var inc = -1;
+    var startingPoint = 0;
+    var shift = 32;
+
+    //Black playing
+    if(i == 4){
+        tempTurn = 0;
+        shift = 0;
+        startingPoint =16;
+    }
+
+    //King side castling
+    if(type == 0){
+        transPos = getPosTranslate(row(moves[kingIndex][64]),col(moves[kingIndex][64]),0,2);
+        arraySize = 4;
+        inc = 1;
+    }
+    //King already moved
+    if(transPos == -1){
+        moves[kingIndex][transPos]=-1;
+        return moves;
+    }
+    //Enumerate all the spots that could be played
+    var castleMoves = new Array(arraySize);
+    castleMoves[0] = kingIndex;
+    for(var i = 1; i<castleMoves.length; i++){
+        castleMoves[i] =kingIndex+(inc*i);
+    }
+    var rookIndex = castleMoves[arraySize-1];
+
+   //Checks if the king or the rook has moved
+   if((moves[kingIndex][65]!=0)||(moves[rookIndex][65]!=0)){
+        //if move castle is not possible
+        moves[kingIndex][transPos]=-1;
+        return moves;
+    }
+    //Check if the king is in check
+    if(inCheck(board,moves,tempTurn)){
+        //if in check castling is not possible
+        moves[kingIndex][transPos]=-1;
+        return moves;
+    }
+    //Check between the rook and king and ensure everymove is legal
+    for(var i = 1; i< castleMoves.length; i++){
+        var pos = board[row(castleMoves[i]+shift)][col(castleMoves[i]+shift)];
+        //Check that nothing is between the king and rook
+        if(pos != -1){
+            moves[kingIndex][transPos]=-1;
+            return moves;
+        }
+        //Check that no piece is attacking between the king and rook
+        for(var j = startingPoint; j< startingPoint+16; j++){
+            if(moves[i][castleMoves[i]+shift] != -1){
+                 moves[kingIndex][transPos]=-1;
+                 return moves;
+            }
+        }
+    }
+
+    return moves;
+}
+//Return the moves if castle is possible or not.
+function castlingMove(moves, kingIndex,board){
+    moves = castle(moves, kingIndex, board,0); //return King Castle
+    moves = castle(moves, kingIndex, board, 1); //Queen Castle
+        
+    return moves;
+}
+//Limits how the piecess can move if its king is inCheck
+function limitMoveCheck(moves, kingPosition, board){
+    //If we are playing black piece
+    var  tempTurn = 1; //Set who is playing
+    var startingPoint = 0; //Set the starting point of piece we are playing
+    var bump= 0; //used in calculating the value that appears on board
+
+    //If we are playing white piece
+    if(kingPosition == 28){
+        tempTurn =0;
+        startingPoint = 16;
+        bump=100;
+    }
+    //Determines if the king is in check
+    if(inCheck(board,moves,tempTurn)){
+        //Check  every piece to see if it can get the king out of check
+        for(var i = startingPointing; i < startingPoint+16; i++ ){
+            for(var j =0; j < 64 ; j++){
+                if(moves[i][j]!=-1){
+                    var newBoard = copyBoard(board);
+                    newBoard[row(j)][col(j)] = bump+i;
+                    if(inCheck(newBoard,moves,tempTurn)){
+                        move[i][j]=-1;  //Set those plays that can't get the king out check to -1'
+                    }
+                    newBoard = null;//Clean up
+                }
+            }
+        }
+    }
+    return moves;
+}
+//Copy the game board into a fresh board
+function copyBoard(board){
+    var newBoard = new Array(board.length);
+
+    for(var i =0; i<newBoard.length; i++){
+        newBoard[i] = new Array(board[i].length);
+        for(var j = 0; j<newBoard[i].length;i++){
+            newBoard[i][j] = board[i][j];
+        }
+
+    }
+    return newBoard;
+}
 //Limits the king from moving into check
 function moveIntoCheck(moves, kingIndex,board){
     var startingPoint  =0;
     var kingPos = moves[kingIndex][64];
-    if(kingIndex < 5) startPoint = 16;
+    if(kingIndex < 5) startingPoint = 16;
 
     for(var k = 0; k < kingMoves.length; k++){
         var kingTrans = getPosTranslate(row(kingPos),col(kingPos),kingMoves[i][0],kingMoves[i][1]);
         if(kingTrans != -1){
             if(moves[kingIndex][kingTrans] == 1){
-                for(var i =startingPoint; i < startPoint+16; i++){
+                for(var i =startingPoint; i < startingPoint+16; i++){
                     if((moves[i][kingTrans] ==1)||(moves[i][kingTrans] ==2)){
                         moves[kingIndex][kingTrans]=-1
                     }
